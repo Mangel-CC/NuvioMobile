@@ -14,6 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.p2p.P2pSettingsRepository
 import com.nuvio.app.features.p2p.P2pStreamRequest
@@ -36,6 +37,7 @@ import com.nuvio.app.features.watchprogress.buildPlaybackVideoId
 import com.nuvio.app.features.watching.application.WatchingState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import nuvio.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.getString
@@ -502,7 +504,13 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         cancelNextEpisodeAutoPlay()
 
         if (!playerSettingsUiState.skipIntroEnabled) return@LaunchedEffect
-        embeddedChapters = probeEmbeddedChapters(activeSourceUrl, activeSourceHeaders)
+        // Only read the container once this source is actually playing, so the extra range
+        // requests never compete with stream startup (some hosts limit concurrent connections).
+        val sourceUrl = activeSourceUrl
+        snapshotFlow {
+            playerControllerSourceUrl == sourceUrl && playbackSnapshot.isPlaying && !playbackSnapshot.isLoading
+        }.first { it }
+        embeddedChapters = probeEmbeddedChapters(sourceUrl, activeSourceHeaders)
     }
 
     // A final chapter without a declared end needs the duration, so rebuild once it is known.
