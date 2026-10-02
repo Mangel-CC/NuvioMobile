@@ -65,6 +65,9 @@ object ChapterSkipClassifier {
         "^(?:op\\d*|opening(?:\\s+(?:theme|song|credits|titles?|sequence))?|" +
             "intro\\s+(?:song|theme|credits|sequence)|" +
             "title\\s+sequence|main\\s+titles?|theme\\s+song|" +
+            // es / pt / fr / it / de
+            "apertura|abertura|creditos\\s+(?:iniciales|de\\s+apertura|de\\s+entrada)|cabecera|" +
+            "generique\\s+(?:de\\s+debut|d\\s*ouverture)|sigla\\s+(?:iniziale|d\\s*apertura)|sigla$|vorspann|" +
             "o{1,2}puningu|oupuningu)\\b"
     )
     // A bare "Intro" is the opening theme unless the file also has an explicit Opening/OP chapter;
@@ -73,17 +76,26 @@ object ChapterSkipClassifier {
     private val prologuePattern = Regex("^(?:prologue|prolog|purorogu)\\b")
     private val recapPattern = Regex(
         "^(?:recap|previously(?:\\s+on)?|last\\s+time|" +
-            "zenkai(?:\\s+no\\s+arasuji)?|arasuji|matome)\\b"
+            "zenkai(?:\\s+no\\s+arasuji)?|arasuji|matome|" +
+            // es / pt / fr / it / de
+            "resumen|recapitulacion|anteriormente(?:\\s+en)?|previamente|resumo|" +
+            "resume|precedemment|riassunto|ruckblick)\\b"
     )
     private val outroPattern = Regex(
         "^(?:ed\\d*|ending(?:\\s+(?:theme|song|credits|titles?|sequence))?|" +
             "outro(?:\\s+(?:song|theme|credits))?|" +
             "(?:end|closing|ending)\\s+credits|credits|staff\\s+roll|" +
+            // es / pt / fr / it / de
+            "creditos(?:\\s+(?:finales|finais|de\\s+cierre))?|cierre|encerramento|" +
+            "generique(?:\\s+de\\s+fin)?|titoli\\s+di\\s+coda|sigla\\s+finale|abspann|" +
             "e{1,2}ndingu)\\b"
     )
     private val previewPattern = Regex(
         "^(?:preview|(?:episode|ep)\\s+preview|next\\s+(?:episode|ep|time)(?:\\s+preview)?|next\\s+on|" +
-            "jikai(?:\\s+yokoku)?|yokoku)\\b"
+            "jikai(?:\\s+yokoku)?|yokoku|" +
+            // es / pt / fr / it / de
+            "avance|adelanto|(?:proximo|siguiente)\\s+(?:episodio|capitulo)|previa|" +
+            "bande\\s+annonce|prochain\\s+episode|anteprima|vorschau)\\b"
     )
 
     private val kanaIntro = listOf("オープニング", "ＯＰ")
