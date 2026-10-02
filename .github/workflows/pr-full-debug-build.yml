@@ -34,6 +34,8 @@ jobs:
       - name: Prepare runtime properties
         env:
           LOCAL_PROPERTIES_BASE64: ${{ secrets.NUVIO_LOCAL_PROPERTIES_BASE64 }}
+          NUVIO_SUPABASE_URL: ${{ secrets.NUVIO_SUPABASE_URL }}
+          NUVIO_SUPABASE_ANON_KEY: ${{ secrets.NUVIO_SUPABASE_ANON_KEY }}
         run: |
           if [ -n "$LOCAL_PROPERTIES_BASE64" ]; then
             printf '%s' "$LOCAL_PROPERTIES_BASE64" | base64 --decode > local.properties
@@ -41,6 +43,15 @@ jobs:
           else
             touch local.properties
           fi
+
+          # Fork: plain secrets for the account backend, appended when present.
+          for key in NUVIO_SUPABASE_URL NUVIO_SUPABASE_ANON_KEY; do
+            value="${!key}"
+            if [ -n "$value" ]; then
+              sed -i -E "/^[[:space:]]*${key}[[:space:]]*=/d" local.properties
+              printf '\n%s=%s\n' "$key" "$value" >> local.properties
+            fi
+          done
 
       - name: Build fullDebug APK
         run: ./gradlew :androidApp:assembleFullDebug -Pnuvio.android.distribution=full -Pnuvio.ios.distribution=appstore --stacktrace
