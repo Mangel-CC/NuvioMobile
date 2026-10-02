@@ -21,10 +21,10 @@ class ChapterSkipClassifierTest {
         )
         val intervals = ChapterSkipClassifier.toSkipIntervals(chapters, 1_420_000L, isMovie = false)
 
-        assertEquals(listOf("intro", "outro", "preview"), intervals.map { it.type })
-        assertEquals(90.0, intervals[0].startTime)
-        assertEquals(180.0, intervals[0].endTime)
-        assertEquals(1420.0, intervals[2].endTime)
+        assertEquals(listOf("prologue", "intro", "outro", "preview"), intervals.map { it.type })
+        assertEquals(90.0, intervals[1].startTime)
+        assertEquals(180.0, intervals[1].endTime)
+        assertEquals(1420.0, intervals[3].endTime)
     }
 
     @Test
@@ -72,5 +72,36 @@ class ChapterSkipClassifierTest {
 
         assertTrue(ChapterSkipClassifier.toSkipIntervals(chapters, 0L, isMovie = false).isEmpty())
         assertEquals(1, ChapterSkipClassifier.toSkipIntervals(chapters, 1_400_000L, isMovie = false).size)
+    }
+
+    @Test
+    fun bareIntroBeforeAnExplicitOpeningIsTheColdOpenAndIsNotSkipped() {
+        val chapters = listOf(
+            chapter(0, "Intro"),
+            chapter(150, "Opening"),
+            chapter(240, "Part A"),
+            chapter(1300, "Ending"),
+        )
+        val intervals = ChapterSkipClassifier.toSkipIntervals(chapters, 1_420_000L, isMovie = false)
+
+        assertEquals(listOf("intro", "outro"), intervals.map { it.type })
+        assertEquals(150.0, intervals[0].startTime)
+    }
+
+    @Test
+    fun bareIntroIsTheOpeningWhenThereIsNoOpeningChapter() {
+        val chapters = listOf(chapter(0, "Prologue"), chapter(60, "Intro"), chapter(150, "Part A"))
+        val types = ChapterSkipClassifier.toSkipIntervals(chapters, 1_420_000L, isMovie = false).map { it.type }
+
+        assertEquals(listOf("prologue", "intro"), types)
+    }
+
+    @Test
+    fun prologueGetsItsOwnManualOnlyType() {
+        val chapters = listOf(chapter(0, "Prologue"), chapter(95, "OP"), chapter(185, "Part A"))
+        val intervals = ChapterSkipClassifier.toSkipIntervals(chapters, 1_420_000L, isMovie = false)
+
+        assertEquals(listOf(ChapterSkipClassifier.TYPE_PROLOGUE, "intro"), intervals.map { it.type })
+        assertEquals(null, com.nuvio.app.features.player.skip.AutoSkipSegmentType.fromSkipIntervalType(ChapterSkipClassifier.TYPE_PROLOGUE))
     }
 }

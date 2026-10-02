@@ -42,13 +42,19 @@ object ChapterSkipClassifier {
     const val TYPE_MOVIE_CREDITS = "movie-credits"
     const val TYPE_PREVIEW = "preview"
 
+    /**
+     * "Prologue" chapters are a recap in some releases and new story in others, so they get a
+     * manual Skip button only: no AutoSkipSegmentType maps to this type, so it is never auto-skipped.
+     */
+    const val TYPE_PROLOGUE = "prologue"
+
     private const val MAX_INTRO_MS = 5 * 60_000L
     private const val MAX_RECAP_MS = 6 * 60_000L
     private const val MAX_PREVIEW_MS = 3 * 60_000L
     private const val MAX_OUTRO_MS = 15 * 60_000L
     private const val MIN_SEGMENT_MS = 3_000L
 
-    private enum class Kind { INTRO, RECAP, OUTRO, PREVIEW }
+    private enum class Kind { INTRO, WEAK_INTRO, RECAP, PROLOGUE, OUTRO, PREVIEW }
 
     // Leading numbering such as "01 ", "1. ", "chapter 3 - ", "ch 2: ".
     private val leadingNumbering = Regex("^(?:(?:chapter|chap|ch)\\s*)?\\d{1,3}\\s*[-.:)]?\\s+")
@@ -57,10 +63,14 @@ object ChapterSkipClassifier {
 
     private val introPattern = Regex(
         "^(?:op\\d*|opening(?:\\s+(?:theme|song|credits|titles?|sequence))?|" +
-            "intro(?:\\s+(?:song|theme|credits|sequence))?|" +
+            "intro\\s+(?:song|theme|credits|sequence)|" +
             "title\\s+sequence|main\\s+titles?|theme\\s+song|" +
             "o{1,2}puningu|oupuningu)\\b"
     )
+    // A bare "Intro" is the opening theme unless the file also has an explicit Opening/OP chapter;
+    // then it is the episode's cold open (e.g. "Intro" followed by "Opening").
+    private val weakIntroPattern = Regex("^intro\\b")
+    private val prologuePattern = Regex("^(?:prologue|prolog|purorogu)\\b")
     private val recapPattern = Regex(
         "^(?:recap|previously(?:\\s+on)?|last\\s+time|" +
             "zenkai(?:\\s+no\\s+arasuji)?|arasuji|matome)\\b"
@@ -80,6 +90,7 @@ object ChapterSkipClassifier {
     private val kanaRecap = listOf("前回のあらすじ", "あらすじ", "前回")
     private val kanaOutro = listOf("エンディング", "ＥＤ", "スタッフロール")
     private val kanaPreview = listOf("次回予告", "予告")
+    private val kanaPrologue = listOf("プロローグ")
 
     private val diacritics = mapOf(
         'ā' to 'a', 'á' to 'a', 'à' to 'a', 'â' to 'a', 'ä' to 'a',
@@ -105,9 +116,14 @@ object ChapterSkipClassifier {
             .filter { it.startMs >= 0L }
             .sortedBy { it.startMs }
             .distinctBy { it.startMs }
+        val kinds = sorted.map { classify(it.title) }
+        val hasExplicitOpening = kinds.any { it == Kind.INTRO }
         val result = ArrayList<SkipInterval>()
         sorted.forEachIndexed { index, chapter ->
-            val kind = classify(chapter.title) ?: return@forEachIndexed
+            val kind = when (val raw = kinds[index]) {
+                Kind.WEAK_INTRO -> if (hasExplicitOpening) null else Kind.INTRO
+                else -> raw
+            } ?: return@forEachIndexed
             val nextStart = sorted.getOrNull(index + 1)?.startMs
             val endMs = chapter.endMs?.takeIf { it > chapter.startMs }
                 ?: nextStart
@@ -115,15 +131,16 @@ object ChapterSkipClassifier {
                 ?: return@forEachIndexed
             val lengthMs = endMs - chapter.startMs
             val maxMs = when (kind) {
-                Kind.INTRO -> MAX_INTRO_MS
-                Kind.RECAP -> MAX_RECAP_MS
+                Kind.INTRO, Kind.WEAK_INTRO -> MAX_INTRO_MS
+                Kind.RECAP, Kind.PROLOGUE -> MAX_RECAP_MS
                 Kind.PREVIEW -> MAX_PREVIEW_MS
                 Kind.OUTRO -> MAX_OUTRO_MS
             }
             if (lengthMs < MIN_SEGMENT_MS || lengthMs > maxMs) return@forEachIndexed
             val type = when (kind) {
-                Kind.INTRO -> TYPE_INTRO
+                Kind.INTRO, Kind.WEAK_INTRO -> TYPE_INTRO
                 Kind.RECAP -> TYPE_RECAP
+                Kind.PROLOGUE -> TYPE_PROLOGUE
                 Kind.PREVIEW -> TYPE_PREVIEW
                 Kind.OUTRO -> if (isMovie) TYPE_MOVIE_CREDITS else TYPE_OUTRO
             }
@@ -160,11 +177,14 @@ object ChapterSkipClassifier {
             kanaRecap.any { trimmed.startsWith(it) } -> return Kind.RECAP
             kanaOutro.any { trimmed.startsWith(it) } -> return Kind.OUTRO
             kanaPreview.any { trimmed.startsWith(it) } -> return Kind.PREVIEW
+            kanaPrologue.any { trimmed.startsWith(it) } -> return Kind.PROLOGUE
         }
         val title = normalize(trimmed)
         if (title.isEmpty()) return null
         return when {
             introPattern.containsMatchIn(title) -> Kind.INTRO
+            weakIntroPattern.containsMatchIn(title) -> Kind.WEAK_INTRO
+            prologuePattern.containsMatchIn(title) -> Kind.PROLOGUE
             recapPattern.containsMatchIn(title) -> Kind.RECAP
             outroPattern.containsMatchIn(title) -> Kind.OUTRO
             previewPattern.containsMatchIn(title) -> Kind.PREVIEW
