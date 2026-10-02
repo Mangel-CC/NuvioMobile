@@ -44,6 +44,11 @@ val releaseAppVersionName = providers.gradleProperty("nuvio.app.versionName").or
 val releaseAppVersionCode = readXcconfigValue(appVersionConfigFile, "CURRENT_PROJECT_VERSION")
     ?.toIntOrNull()
     ?: error("CURRENT_PROJECT_VERSION is missing or invalid in ${appVersionConfigFile.path}")
+// Package name / launcher label of this fork (Mangel-CC/NuvioMobile), distinct from the official
+// com.nuvio.app so both apps can be installed at the same time.
+val forkApplicationId = "com.nuvio.app.chapters"
+val forkAppLabel = "Nuvio Chapters"
+
 val requestedTaskNames = gradle.startParameter.taskNames.map { it.substringAfterLast(':') }
 val buildsReleaseApks = requestedTaskNames.any {
     it.startsWith("assemble", ignoreCase = true) && it.endsWith("Release", ignoreCase = true)
@@ -72,12 +77,16 @@ android {
         versionCode = releaseAppVersionCode
         versionName = releaseAppVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["appLabel"] = "@string/app_name"
     }
 
     flavorDimensions += "distribution"
     productFlavors {
         create("full") {
             dimension = "distribution"
+            // Fork build: own package + label so it installs side by side with the official app.
+            applicationId = forkApplicationId
+            manifestPlaceholders["appLabel"] = forkAppLabel
         }
         create("playstore") {
             dimension = "distribution"
@@ -145,7 +154,8 @@ android {
 
 androidComponents {
     onVariants(selector().withBuildType("debug")) { variant ->
-        variant.applicationId.set("com.nuviodebug.com")
+        val isFull = variant.productFlavors.any { it.second == "full" }
+        variant.applicationId.set(if (isFull) forkApplicationId else "com.nuviodebug.com")
     }
 }
 

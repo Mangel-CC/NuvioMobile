@@ -21,7 +21,8 @@ import com.nuvio.app.features.p2p.P2pStreamingEngine
 import com.nuvio.app.features.p2p.P2pStreamingState
 import com.nuvio.app.features.player.skip.NextEpisodeInfo
 import com.nuvio.app.features.player.skip.PlayerNextEpisodeRules
-import com.nuvio.app.features.player.skip.SkipIntroRepository
+import com.nuvio.app.features.player.chapters.ChapterSkipClassifier
+import com.nuvio.app.features.player.chapters.probeEmbeddedChapters
 import com.nuvio.app.features.player.skip.shouldAutoSkip
 import com.nuvio.app.features.player.skip.internalSkipAction
 import com.nuvio.app.features.player.skip.intervalsAtSeekPositions
@@ -484,11 +485,14 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         }
     }
 
+    // Skip intro/outro comes from the chapters embedded in the media file (Matroska Chapters,
+    // MP4 QuickTime/Nero chapters) instead of the external IntroDB/AniSkip/AnimeSkip lookups.
     LaunchedEffect(
         activeVideoId, parentMetaId, parentMetaType, contentType, activeSeasonNumber, activeEpisodeNumber,
-        playerSettingsUiState.skipIntroEnabled,
+        activeSourceUrl, playerSettingsUiState.skipIntroEnabled,
     ) {
         skipIntervals = emptyList()
+        embeddedChapters = emptyList()
         autoSkippedIntervals.clear()
         lastManualSkipSeekPositions = null
         activeSkipInterval = null
@@ -497,39 +501,18 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         nextEpisodeCardDismissed = false
         cancelNextEpisodeAutoPlay()
 
-        val season = activeSeasonNumber
-        val episode = activeEpisodeNumber
-        val vid = activeVideoId
         if (!playerSettingsUiState.skipIntroEnabled) return@LaunchedEffect
-        if ((contentType ?: parentMetaType).equals("movie", ignoreCase = true)) {
-            skipIntervals = SkipIntroRepository.getMovieSkipIntervals(parentMetaId, vid)
-            return@LaunchedEffect
-        }
-        if (season == null || episode == null || vid == null) return@LaunchedEffect
+        embeddedChapters = probeEmbeddedChapters(activeSourceUrl, activeSourceHeaders)
+    }
 
-        launch {
-            val imdbFromContent = parentMetaId.takeIf { it.startsWith("tt") }
-                ?: (metaUiState.meta ?: playerMeta)
-                    ?.takeIf { it.id == parentMetaId }
-                    ?.imdbId
-                    ?.takeIf { it.startsWith("tt") }
-            val intervals = when {
-                vid.startsWith("mal:") -> {
-                    val malId = vid.removePrefix("mal:").substringBefore(':')
-                    SkipIntroRepository.getSkipIntervalsForMal(malId = malId, episode = episode, imdbId = imdbFromContent, imdbSeason = season, imdbEpisode = episode)
-                }
-                vid.startsWith("kitsu:") -> {
-                    val kitsuId = vid.removePrefix("kitsu:").substringBefore(':')
-                    SkipIntroRepository.getSkipIntervalsForKitsu(kitsuId = kitsuId, episode = episode, imdbId = imdbFromContent, imdbSeason = season, imdbEpisode = episode)
-                }
-                else -> SkipIntroRepository.getSkipIntervals(
-                    imdbId = vid.substringBefore(':').takeIf { it.startsWith("tt") },
-                    season = season,
-                    episode = episode,
-                )
-            }
-            skipIntervals = intervals
-        }
+    // A final chapter without a declared end needs the duration, so rebuild once it is known.
+    LaunchedEffect(embeddedChapters, playbackSnapshot.durationMs > 0L, contentType, parentMetaType) {
+        if (embeddedChapters.isEmpty()) return@LaunchedEffect
+        skipIntervals = ChapterSkipClassifier.toSkipIntervals(
+            chapters = embeddedChapters,
+            durationMs = playbackSnapshot.durationMs,
+            isMovie = (contentType ?: parentMetaType).equals("movie", ignoreCase = true),
+        )
     }
 
     LaunchedEffect(

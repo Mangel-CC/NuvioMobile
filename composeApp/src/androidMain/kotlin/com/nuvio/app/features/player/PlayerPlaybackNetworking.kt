@@ -72,6 +72,13 @@ internal object PlayerPlaybackNetworking {
             .build()
     }
 
+    /** Client and headers for small side requests against the stream (e.g. chapter probing). */
+    internal val sideRequestHttpClient: OkHttpClient
+        get() = loopbackPlaybackHttpClient
+
+    internal fun sideRequestHeaders(headers: Map<String, String>): Map<String, String> =
+        withDefaultUserAgent(headers)
+
     fun createHttpDataSourceFactory(
         defaultHeaders: Map<String, String> = emptyMap(),
         useLongReadTimeout: Boolean = false,
