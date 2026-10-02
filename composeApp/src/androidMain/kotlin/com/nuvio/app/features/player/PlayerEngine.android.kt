@@ -131,6 +131,14 @@ actual fun PlatformPlayerSurface(
     var activeEngine by remember(playerSourceKey, playerSettings.androidPlaybackEngine) {
         mutableStateOf(playerSettings.androidPlaybackEngine.initialAndroidEngine())
     }
+    val stallTracker = remember(playerSourceKey) {
+        PlaybackStallTracker(sourceUrl = sourceUrl, engineName = { activeEngine.name })
+    }
+    val trackedOnSnapshot: (PlayerPlaybackSnapshot) -> Unit = { snapshot ->
+        stallTracker.onSnapshot(snapshot)
+        onSnapshot(snapshot)
+    }
+    PlaybackStallDiagnosticsHost(stallTracker)
 
     when (activeEngine) {
         ResolvedAndroidPlaybackEngine.ExoPlayer -> ExoPlayerSurface(
@@ -149,7 +157,7 @@ actual fun PlatformPlayerSurface(
             useNativeController = useNativeController,
             onInitialPositionHandled = onInitialPositionHandled,
             onControllerReady = onControllerReady,
-            onSnapshot = onSnapshot,
+            onSnapshot = trackedOnSnapshot,
             onError = { message ->
                 if (message != null && playerSettings.androidPlaybackEngine == AndroidPlaybackEngine.Auto) {
                     Log.w(TAG, "ExoPlayer failed; falling back to libmpv: $message")
@@ -159,6 +167,7 @@ actual fun PlatformPlayerSurface(
                     activeEngine = ResolvedAndroidPlaybackEngine.Libmpv
                     onError(null)
                 } else {
+                    stallTracker.onError(message)
                     onError(message)
                 }
             },
@@ -181,8 +190,11 @@ actual fun PlatformPlayerSurface(
                 hardwareDecodingEnabled = playerSettings.androidLibmpvHardwareDecodingEnabled,
                 yuv420pEnabled = playerSettings.androidLibmpvYuv420pEnabled,
                 onControllerReady = onControllerReady,
-                onSnapshot = onSnapshot,
-                onError = onError,
+                onSnapshot = trackedOnSnapshot,
+                onError = { message ->
+                    stallTracker.onError(message)
+                    onError(message)
+                },
             )
         }
     }
@@ -665,7 +677,10 @@ private fun ExoPlayerSurface(
 
         }
         exoPlayer.addListener(listener)
+        val diagnosticsListener = createPlaybackDiagnosticsAnalyticsListener()
+        exoPlayer.addAnalyticsListener(diagnosticsListener)
         onDispose {
+            exoPlayer.removeAnalyticsListener(diagnosticsListener)
             PlayerPictureInPictureManager.registerPausePlaybackCallback(null)
             PlayerPictureInPictureManager.registerTogglePlaybackCallback(null)
             exoPlayer.removeListener(listener)
