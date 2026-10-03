@@ -21,13 +21,21 @@ import kotlinx.serialization.json.Json
 private const val VerificationIntervalMs = 15L * 60L * 1_000L
 private val RetryDelaysMs = listOf(1_000L, 2_000L, 4_000L)
 
+// Mangel-CC fork (personal build): preview every supporter cosmetic locally, like NuvioTV's
+// debug-build member tier preview. Only client-side cosmetics are affected; anything the server
+// enforces keeps working as for the signed-in account.
+private val ForkSupporterPreview = MemberAccess(
+    tier = MemberTier.SUPPORTER_PLUS,
+    entitlements = CosmeticEntitlements(CosmeticEntitlement.entries.toSet()),
+)
+
 object MemberAccessRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val log = Logger.withTag("MemberAccessRepository")
     private val json = Json { ignoreUnknownKeys = true }
     private val refreshGeneration = MutableStateFlow(0L)
     private val _access = MutableStateFlow(MemberAccess.None)
-    val access: StateFlow<MemberAccess> = _access.asStateFlow()
+    val access: StateFlow<MemberAccess> = MutableStateFlow(ForkSupporterPreview).asStateFlow()
     private var started = false
     private var verifiedUserId: String? = null
     private var verifiedAtMs = 0L
@@ -35,6 +43,7 @@ object MemberAccessRepository {
     fun ensureStarted() {
         if (started) return
         started = true
+        warmMemberAssets(ForkSupporterPreview)
         hydrateCachedAccess()
         scope.launch {
             combine(AuthRepository.state, refreshGeneration) { auth, _ -> auth }
