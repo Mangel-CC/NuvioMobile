@@ -30,6 +30,21 @@ internal fun PlayerScreenRuntime.isAtNextEpisodeThreshold(): Boolean {
         !initialSeekApplied || isScrubbingTimeline || errorMessage != null ||
         isShortPlaceholderDuration(playbackSnapshot.durationMs)
     ) return false
+    // Credits chapter from the file: show the card only while the credits play (see
+    // PlayerNextEpisodeRules.chapterCreditsWindow), preloading sources shortly before them.
+    PlayerNextEpisodeRules.chapterCreditsWindow(skipIntervals, playbackSnapshot.durationMs)?.let { window ->
+        if ((playerSettingsUiState.preloadNextEpisodeSources ||
+                playerSettingsUiState.streamAutoPlayNextEpisodeEnabled) &&
+            !nextEpisodePreloadTriggered && nextEpisodeInfo != null
+        ) {
+            val leadMs = maxOf(
+                playerSettingsUiState.streamAutoPlayTimeoutSeconds.toLong() * 1_000L,
+                CREDITS_PRELOAD_LEAD_MS,
+            )
+            if (playbackSnapshot.positionMs >= window.startMs - leadMs) preloadNextEpisodeSources()
+        }
+        return playbackSnapshot.isEnded || window.contains(playbackSnapshot.positionMs)
+    }
     // Preload: trigger source fetch before the button appears
     if (playerSettingsUiState.preloadNextEpisodeSources && !nextEpisodePreloadTriggered && nextEpisodeInfo != null) {
         val preloadLeadMs = playerSettingsUiState.streamAutoPlayTimeoutSeconds.toLong() * 1_000L
@@ -53,6 +68,18 @@ internal fun PlayerScreenRuntime.isAtNextEpisodeThreshold(): Boolean {
         thresholdPercent = playerSettingsUiState.nextEpisodeThresholdPercent,
         thresholdMinutesBeforeEnd = playerSettingsUiState.nextEpisodeThresholdMinutesBeforeEnd,
     )
+}
+
+private const val CREDITS_PRELOAD_LEAD_MS = 30_000L
+
+/**
+ * False while the credits chapter is followed by a post-credits scene or preview: auto-play then
+ * waits for the end of the file instead of switching episodes during the credits.
+ */
+internal fun PlayerScreenRuntime.canAutoPlayNextEpisodeNow(): Boolean {
+    if (playbackSnapshot.isEnded) return true
+    val window = PlayerNextEpisodeRules.chapterCreditsWindow(skipIntervals, playbackSnapshot.durationMs)
+    return window?.hasContentAfter != true
 }
 
 internal fun PlayerScreenRuntime.cancelNextEpisodeAutoPlay() {

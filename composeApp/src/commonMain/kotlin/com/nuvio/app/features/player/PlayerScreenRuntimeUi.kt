@@ -439,8 +439,13 @@ private fun BoxScope.RenderPlaybackOverlays(
         overlayBottomPadding = overlayBottomPadding,
         isSeries = isSeries,
         nextEpisodeInfo = nextEpisodeInfo,
-        showNextEpisodeCard = showNextEpisodeCard,
-        nextEpisodeAutoPlaySearching = nextEpisodeAutoPlaySearching,
+        // An automatic next-episode search runs without a card while the video still plays; the
+        // card appears once a source was found (countdown). At the end of the file it stays
+        // visible as feedback.
+        showNextEpisodeCard = showNextEpisodeCard &&
+            !(nextEpisodeAutoPlayAutomatic && nextEpisodeAutoPlaySearching && !playbackSnapshot.isEnded),
+        nextEpisodeAutoPlaySearching = nextEpisodeAutoPlaySearching &&
+            !(nextEpisodeAutoPlayAutomatic && !playbackSnapshot.isEnded),
         nextEpisodeAutoPlaySourceName = nextEpisodeAutoPlaySourceName,
         nextEpisodeAutoPlayCountdown = nextEpisodeAutoPlayCountdown,
         blurUnwatchedEpisodes = metaScreenSettingsUiState.blurUnwatchedEpisodes,

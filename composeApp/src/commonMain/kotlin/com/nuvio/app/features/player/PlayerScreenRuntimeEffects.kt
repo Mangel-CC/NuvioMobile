@@ -665,7 +665,9 @@ private fun PlayerScreenRuntime.BindPlayerMetadataAndSkipEffects() {
         }
         if (shouldShow && !showNextEpisodeCard) {
             showNextEpisodeCard = true
-            if (playerSettingsUiState.streamAutoPlayNextEpisodeEnabled && nextEpisodeInfo?.hasAired == true) {
+            if (playerSettingsUiState.streamAutoPlayNextEpisodeEnabled && nextEpisodeInfo?.hasAired == true &&
+                canAutoPlayNextEpisodeNow()
+            ) {
                 playNextEpisode(automatic = true)
             }
         } else if (!shouldShow) {
