@@ -43,7 +43,7 @@ internal fun PlayerScreenRuntime.isAtNextEpisodeThreshold(): Boolean {
             )
             if (playbackSnapshot.positionMs >= window.startMs - leadMs) preloadNextEpisodeSources()
         }
-        return playbackSnapshot.isEnded || window.contains(playbackSnapshot.positionMs)
+        return window.showsCardAt(playbackSnapshot.positionMs, playbackSnapshot.isEnded)
     }
     // Preload: trigger source fetch before the button appears
     if (playerSettingsUiState.preloadNextEpisodeSources && !nextEpisodePreloadTriggered && nextEpisodeInfo != null) {
@@ -71,16 +71,6 @@ internal fun PlayerScreenRuntime.isAtNextEpisodeThreshold(): Boolean {
 }
 
 private const val CREDITS_PRELOAD_LEAD_MS = 30_000L
-
-/**
- * False while the credits chapter is followed by a post-credits scene or preview: auto-play then
- * waits for the end of the file instead of switching episodes during the credits.
- */
-internal fun PlayerScreenRuntime.canAutoPlayNextEpisodeNow(): Boolean {
-    if (playbackSnapshot.isEnded) return true
-    val window = PlayerNextEpisodeRules.chapterCreditsWindow(skipIntervals, playbackSnapshot.durationMs)
-    return window?.hasContentAfter != true
-}
 
 internal fun PlayerScreenRuntime.cancelNextEpisodeAutoPlay() {
     nextEpisodeAutoPlayJob?.cancel()

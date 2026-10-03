@@ -12,27 +12,29 @@ class ChapterCreditsWindowTest {
         SkipInterval(startTime = start, endTime = end, type = "outro", provider = "chapters")
 
     @Test
-    fun creditsFollowedByAPreviewOnlyCoverTheCredits() {
+    fun aPostCreditsSceneHoldsTheCardBackUntilTheFileEnds() {
         val window = PlayerNextEpisodeRules.chapterCreditsWindow(
             listOf(chapterOutro(1290.0, 1380.0)),
             durationMs = 1_420_000L,
         )!!
 
         assertTrue(window.hasContentAfter)
-        assertFalse(window.contains(1_289_000L))
-        assertTrue(window.contains(1_300_000L))
-        assertFalse(window.contains(1_390_000L))
+        assertFalse(window.showsCardAt(1_289_000L, ended = false))
+        assertFalse(window.showsCardAt(1_300_000L, ended = false))
+        assertFalse(window.showsCardAt(1_410_000L, ended = false))
+        assertTrue(window.showsCardAt(1_420_000L, ended = true))
     }
 
     @Test
-    fun creditsAtTheEndOfTheFileStayOpenUntilTheEnd() {
+    fun withNothingAfterTheCreditsTheCardAppearsWhenTheyStart() {
         val window = PlayerNextEpisodeRules.chapterCreditsWindow(
             listOf(chapterOutro(1330.0, 1418.0)),
             durationMs = 1_420_000L,
         )!!
 
         assertFalse(window.hasContentAfter)
-        assertTrue(window.contains(1_419_000L))
+        assertFalse(window.showsCardAt(1_329_000L, ended = false))
+        assertTrue(window.showsCardAt(1_330_000L, ended = false))
         assertEquals(1_330_000L, window.startMs)
     }
 

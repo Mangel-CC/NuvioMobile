@@ -133,9 +133,10 @@ object PlayerNextEpisodeRules {
     private const val POST_CREDITS_GAP_MS = 5_000L
 
     /**
-     * Credits taken from the file's own chapters. The next-episode card is shown only while they
-     * play: never before the credits start, and never over what follows them (a post-credits scene
-     * or a next-episode preview), where it would cover the subtitles.
+     * Credits taken from the file's own chapters. With nothing after them, the next-episode card
+     * appears when they start (the episode is over). With a post-credits scene or preview after
+     * them, no card is shown until the file ends: its absence signals that something follows,
+     * and it never covers that scene's subtitles.
      */
     data class ChapterCreditsWindow(
         val startMs: Long,
@@ -143,8 +144,8 @@ object PlayerNextEpisodeRules {
         /** True when a post-credits scene or preview follows the credits. */
         val hasContentAfter: Boolean,
     ) {
-        fun contains(positionMs: Long): Boolean =
-            positionMs >= startMs && (!hasContentAfter || positionMs < endMs)
+        fun showsCardAt(positionMs: Long, ended: Boolean): Boolean =
+            ended || (!hasContentAfter && positionMs >= startMs)
     }
 
     fun chapterCreditsWindow(skipIntervals: List<SkipInterval>, durationMs: Long): ChapterCreditsWindow? {
