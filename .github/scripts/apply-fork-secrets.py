@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """Fork CI helper: writes repository secrets named like build properties into properties files.
 
-Usage: FORK_SECRETS_JSON='${{ toJSON(secrets) }}' apply-fork-secrets.py KEYS_FILE PROPERTIES_FILE...
+Usage: apply-fork-secrets.py KEYS_FILE PROPERTIES_FILE...
 
-Only keys listed in KEYS_FILE are written, so unrelated secrets (GITHUB_TOKEN, ...) never end up
-in the build. Values are never printed.
+Each key listed in KEYS_FILE is read from the environment (the workflow maps it from the secret of
+the same name) and written when non-empty. Values are never printed.
 """
-import json
 import os
 import sys
 
@@ -19,8 +18,7 @@ def main() -> None:
     keys_file, *properties_files = sys.argv[1:]
     with open(keys_file, encoding="utf-8") as handle:
         allowed = [line.strip() for line in handle if line.strip() and not line.startswith("#")]
-    secrets = json.loads(os.environ.get("FORK_SECRETS_JSON") or "{}")
-    values = {key: secrets[key].strip() for key in allowed if (secrets.get(key) or "").strip()}
+    values = {key: os.environ[key].strip() for key in allowed if (os.environ.get(key) or "").strip()}
 
     for path in properties_files:
         lines = []
